@@ -28,9 +28,11 @@ lcd_20x04\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h
 lcd_20x04\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
 lcd_20x04\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_i2c.h
 lcd_20x04\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h
+lcd_20x04\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
+lcd_20x04\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
 lcd_20x04\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 lcd_20x04\main.o: ../Core/Inc/i2c-lcd.h
-lcd_20x04\main.o: ../Core/Inc/DHT.h
+lcd_20x04\main.o: ../Core/Inc/mk_dht11.h
 lcd_20x04\main.o: ../Core/Inc/ph4502c_sensor.h
 lcd_20x04\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 lcd_20x04\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h

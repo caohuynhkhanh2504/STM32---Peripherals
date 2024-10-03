@@ -226,8 +226,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Core\Src\DHT.c</PathWithFileName>
-      <FilenameWithoutPath>DHT.c</FilenameWithoutPath>
+      <PathWithFileName>..\Core\Src\ph4052c_sensor.c</PathWithFileName>
+      <FilenameWithoutPath>ph4052c_sensor.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -238,8 +238,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\Core\Src\ph4052c_sensor.c</PathWithFileName>
-      <FilenameWithoutPath>ph4052c_sensor.c</FilenameWithoutPath>
+      <PathWithFileName>..\Core\Src\mk_dht11.c</PathWithFileName>
+      <FilenameWithoutPath>mk_dht11.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>

@@ -22,7 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "i2c-lcd.h"
-#include "DHT.h"
+#include "mk_dht11.h"
 #include "ph4502c_sensor.h"
 #include "stdio.h"
 #include "stdio.h"
@@ -36,6 +36,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define ADC_MAX_VALUE 4095.0
+#define VOLTAGE_REF 5.0  // dien ap tham chieu 5V
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,20 +47,24 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
-DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
+
+TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-DHT_DataTypedef DHT11_Data;
+dht11_t dht;
 PH4502C_Sensor PH_Sensor;
-float Temperature;				// DHT11
-float Humidity;						// DHT11
-float PH_Value;						// PH4502C
+float Air_Temperature;				// DHT11
+float Air_Humidity;						// DHT11
+float Liquid_Temperature;	//PH
+float Liquid_pH;					//PH
+uint32_t adc_value_pH, adc_value_temp;
+float Soil_Humidity;
 long last;								// DHT11
-uint16_t sensor_data[2];
+uint32_t sensor_data[3];
 char lcd_data[20];
 float percentage_sensor_data[2];
 /* USER CODE END PV */
@@ -66,12 +72,15 @@ float percentage_sensor_data[2];
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-static void Read_DataDHT(void);
+static void DHT11_ReadExample(void);
+static void Read_ADC_Value(void);
+static float Convert_ADC_To_pH(uint32_t adc_value);
+static float Convert_ADC_To_Temperature(uint32_t adc_value);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -107,64 +116,62 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_I2C1_Init();
   MX_ADC1_Init();
   MX_USART1_UART_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 	lcd_init();
-	PH4502C_Sensor_Init(&PH_Sensor, &hadc1, ADC_CHANNEL_4, 0);  // Assuming no temperature sensor
 //	lcd_send_cmd (0x80|0x00);		//dau hang 1
 //  lcd_send_string("HUNG KEM");
 
  // lcd_send_cmd (0x80|0x40);		//dau hang 2
 //	lcd_send_cmd(0x94);  // dau hang 3
-	lcd_send_cmd(0xD4);			//dau hang 4
-	HAL_Delay(10);
-	lcd_send_string("HUKA");
-	PH4502C_Sensor_Recalibrate(&PH_Sensor, 7.00);
+//	lcd_send_cmd(0xD4);			//dau hang 4
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {    
-		HAL_ADC_Start_DMA(&hadc1,(uint32_t *)sensor_data, 2);
-		HAL_Delay(10);
-		HAL_ADC_Stop_DMA(&hadc1);
+		Read_ADC_Value();
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
+		
 		HAL_Delay(500);
-	/*----------------------------------------------------------------------------------------------	
-	//	sprintf(lcd_data, "DO AM DAT:%d ", sensor_data[0]);
-		percentage_sensor_data[0] = 100.0 - ((float)sensor_data[0]/4095.0) * 100.0;
-		sprintf(lcd_data, "DO AM DAT: %.2f%% ", percentage_sensor_data[0]);
+		
+		Soil_Humidity = 100.0 - ((float)sensor_data[0]/4095.0) * 100.0;
+		sprintf(lcd_data, "DO AM DAT: %.2f%% ", Soil_Humidity);
 		lcd_send_cmd(0x80|0x00);		//hang 1
-		lcd_send_string(lcd_data);
 		HAL_Delay(10);
+		lcd_send_string(lcd_data);
+		HAL_Delay(50);
+	
+		DHT11_ReadExample();
+		sprintf(lcd_data, "NHIET DO KK: %.2f ", Air_Temperature);
+		lcd_send_cmd(0x80|0x40);
+		HAL_Delay(10);
+		lcd_send_string(lcd_data);
+		HAL_Delay(50);
 		
-		Read_DataDHT();
-		sprintf(lcd_data, "NHIET DO: %.2f ", Temperature);
-		lcd_send_cmd(0x80|0x40);		//hang 2
-		lcd_send_string(lcd_data);
-		
-		sprintf(lcd_data, "DO AM: %0.2f", Humidity);
-		lcd_send_cmd(0x94);
-		lcd_send_string(lcd_data);
-------------------------------------------------------------------------------------
-*/		
-//		PH_Value = PH4502C_Sensor_ReadPHLevelSingle(&PH_Sensor);
-		sprintf(lcd_data, "DO PH: %.2f", PH_Value);
-		lcd_send_cmd(0x94);
+		sprintf(lcd_data, "DO AM KK: %0.2f", Air_Humidity);
+		lcd_send_cmd(0x80|0x94);
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
-		HAL_Delay(10);
-		lcd_send_cmd (0x80|0x40);
-		sprintf(lcd_data,"Celibration: %.2f", PH_Sensor.calibration);
-		HAL_Delay(10);
-		lcd_send_string(lcd_data);
-		HAL_Delay(1000);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
+		HAL_Delay(50);
 
+		adc_value_pH = sensor_data[1];
+		adc_value_temp = sensor_data[2];
+		Liquid_Temperature = Convert_ADC_To_Temperature(adc_value_temp);
+		Liquid_pH = Convert_ADC_To_pH(adc_value_pH);
+		
+		sprintf(lcd_data,"Water: %.1fpH/ %.1fC", Liquid_pH, Liquid_Temperature);
+		lcd_send_cmd(0xD4);
+		HAL_Delay(10);
+		lcd_send_string(lcd_data);
+		HAL_Delay(50);
+
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
+		HAL_Delay(500);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -191,7 +198,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -206,12 +213,12 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
-  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV6;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV4;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -244,7 +251,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 2;
+  hadc1.Init.NbrOfConversion = 3;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -264,6 +271,15 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_4;
   sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_6;
+  sConfig.Rank = ADC_REGULAR_RANK_3;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -309,6 +325,51 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 32-1;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535-1;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
   * @brief USART1 Initialization Function
   * @param None
   * @retval None
@@ -338,22 +399,6 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
-
-}
-
-/**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 
@@ -389,39 +434,78 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void Read_DataDHT(void)
+void DHT11_ReadExample(void) {
+    // Kh?i t?o DHT11 v?i timer, port và pin tuong ?ng
+    init_dht11(&dht, &htim2, GPIOA, GPIO_PIN_1);
+
+    // Ð?c d? li?u t? DHT11
+    uint8_t result = readDHT11(&dht);
+
+    // Ki?m tra n?u d?c thành công
+    if (result == 1) {
+        // In k?t qu? n?u d?c thành công
+				Air_Temperature = dht.temperature;
+				Air_Humidity = dht.humidty;
+    } else {
+        // Thông báo n?u có l?i trong quá trình d?c
+        sprintf(lcd_data, "Failed read DHT11");
+    }
+}
+
+void Read_ADC_Value(void)
 {
-	DHT_GetData(&DHT11_Data);
-	Temperature = DHT11_Data.Temperature;
-	Humidity = DHT11_Data.Humidity;
-	
-	last = HAL_GetTick();
-	while(1)
-	{
-		if(HAL_GetTick() - last >= 1200)
-		{
-			last = HAL_GetTick();
-			sprintf(lcd_data, "NHIET DO: %.2f ", Temperature);
-		lcd_send_cmd(0x80|0x40);		//hang 2
-		lcd_send_string(lcd_data);
-		
-		sprintf(lcd_data, "DO AM: %0.2f", Humidity);
-		lcd_send_cmd(0x94);
-		lcd_send_string(lcd_data);
-			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
-			break;
-		}
-	}
+    /* C?u hình và d?c kênh ADC 0 (d? ?m d?t) */
+    ADC_ChannelConfTypeDef sConfig = {0};
+    sConfig.Channel = ADC_CHANNEL_0;
+    sConfig.Rank = ADC_REGULAR_RANK_1;
+    sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+    HAL_ADC_ConfigChannel(&hadc1, &sConfig);
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+    sensor_data[0] = HAL_ADC_GetValue(&hadc1);
+    HAL_ADC_Stop(&hadc1);
+
+    /* C?u hình và d?c kênh ADC 4 (pH nu?c) */
+    sConfig.Channel = ADC_CHANNEL_4;
+    sConfig.Rank = ADC_REGULAR_RANK_1;
+    HAL_ADC_ConfigChannel(&hadc1, &sConfig);
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+    sensor_data[1] = HAL_ADC_GetValue(&hadc1);
+    HAL_ADC_Stop(&hadc1);
+
+    /* C?u hình và d?c kênh ADC 6 (nhi?t d? nu?c) */
+    sConfig.Channel = ADC_CHANNEL_6;
+    sConfig.Rank = ADC_REGULAR_RANK_1;
+    HAL_ADC_ConfigChannel(&hadc1, &sConfig);
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+    sensor_data[2] = HAL_ADC_GetValue(&hadc1);
+    HAL_ADC_Stop(&hadc1);
 }
 
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
-{
-	if(hadc->Instance == ADC1)
-	{
-		PH_Value = PH4502C_Sensor_ReadPHLevelSingle(&PH_Sensor, &sensor_data[1]);
-	}
+float Convert_ADC_To_pH(uint32_t adc_value) {
+    // Chuy?n d?i giá tr? ADC v? di?n áp
+    float voltage = (adc_value / ADC_MAX_VALUE) * VOLTAGE_REF;
+    
+    // Chuy?n d?i di?n áp v? giá tr? pH
+    float pH_value = 2.8 * voltage;
+    
+    return pH_value;
 }
+
+float Convert_ADC_To_Temperature(uint32_t adc_value) {
+    // Chuy?n d?i giá tr? ADC v? di?n áp
+    float voltage = (adc_value / ADC_MAX_VALUE) * VOLTAGE_REF;
+
+    // Gi? s? m?t m?i quan h? tuy?n tính gi?a di?n áp và nhi?t d?
+    // Ví d?: 0V tuong ?ng v?i 0 d? C và 5V tuong ?ng v?i 100 d? C
+    float temperature = 12 * voltage;
+
+    return temperature;
+}
+
 /* USER CODE END 4 */
 
 /**

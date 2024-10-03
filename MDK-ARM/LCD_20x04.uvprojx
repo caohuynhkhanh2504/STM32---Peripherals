@@ -399,14 +399,14 @@
               <FilePath>..\Core\Src\i2c-lcd.c</FilePath>
             </File>
             <File>
-              <FileName>DHT.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\DHT.c</FilePath>
-            </File>
-            <File>
               <FileName>ph4052c_sensor.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Core\Src\ph4052c_sensor.c</FilePath>
+            </File>
+            <File>
+              <FileName>mk_dht11.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\mk_dht11.c</FilePath>
             </File>
             <File>
               <FileName>main.c</FileName>

@@ -145,32 +145,23 @@ int main(void)
 		HAL_Delay(500);
 		
 		Soil_Humidity = 100.0 - ((float)sensor_data[0]/4095.0) * 100.0;
-		sprintf(lcd_data, "DO AM DAT: %.1f%% ", Soil_Humidity);
+		sprintf(lcd_data, "Soil Moisture: %.1f%%  ", Soil_Humidity);
 		HAL_Delay(100);
-		sprintf(jsonData,"{\"sensor\":\"Soil Moisture Sensor\",\"data\": %.1f}", Soil_Humidity);
-		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
-		HAL_Delay(500);
 		lcd_send_cmd(0x80|0x00);		//hang 1
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
 		HAL_Delay(500);
 	
 		DHT11_ReadExample();
-		sprintf(lcd_data, "NHIET DO KK: %.1f", Air_Temperature);
+		sprintf(lcd_data, "Air Temperatue: %.1f ", Air_Temperature);
 		HAL_Delay(100);
-		sprintf(jsonData,"{\"sensor\":\"Temperature Sensor\",\"data\": %.1f}", Air_Temperature);
-		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
-		HAL_Delay(500);
 		lcd_send_cmd(0x80|0x40);
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
 		HAL_Delay(500);
 		
-		sprintf(lcd_data, "DO AM KK: %0.1f", Air_Humidity);
+		sprintf(lcd_data, "Air Humidity: %0.1f  ", Air_Humidity);
 		HAL_Delay(100);
-		sprintf(jsonData,"{\"sensor\":\"Air Humidity Sensor\",\"data\": %.1f}", Air_Humidity);
-		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
-		HAL_Delay(500);
 		lcd_send_cmd(0x80|0x94);
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
@@ -180,20 +171,25 @@ int main(void)
 		adc_value_temp = sensor_data[2];
 		Liquid_Temperature = Convert_ADC_To_Temperature(adc_value_temp);
 		Liquid_pH = Convert_ADC_To_pH(adc_value_pH);
-		
-		sprintf(lcd_data,"Water: %.1fpH/ %.1fC", Liquid_pH, Liquid_Temperature);
+		sprintf(lcd_data,"Water: %.1fpH/ %.1fC ", Liquid_pH, Liquid_Temperature);
 		HAL_Delay(100);
-		sprintf(jsonData,"{\"sensor\":\"Water pH Sensor\",\"data\": %.1f}", Liquid_pH);
-		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
-		HAL_Delay(300);
-		sprintf(jsonData,"{\"sensor\":\"Air Temperature Sensor\",\"data\": %.1f}", Liquid_Temperature);
-		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
-		HAL_Delay(500);
 		lcd_send_cmd(0xD4);
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
 		HAL_Delay(500);
-
+	
+		sprintf(jsonData,"{\"sensor\":\"Soil Moisture Sensor\",\"data\": %.1f}", Soil_Humidity);
+		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
+		HAL_Delay(200);
+		sprintf(jsonData,"{\"sensor\":\"Temperature Sensor\",\"data\": %.1f}", Air_Temperature);
+		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
+		HAL_Delay(200);
+		sprintf(jsonData,"{\"sensor\":\"Water pH Sensor\",\"data\": %.1f}", Liquid_pH);
+		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
+		HAL_Delay(200);
+		sprintf(jsonData,"{\"sensor\":\"Air Temperature Sensor\",\"data\": %.1f}", Liquid_Temperature);
+		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
+		HAL_Delay(200);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
 		HAL_Delay(500);
     /* USER CODE END WHILE */

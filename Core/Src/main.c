@@ -38,7 +38,7 @@
 /* USER CODE BEGIN PD */
 #define ADC_MAX_VALUE 4095.0
 #define VOLTAGE_REF 5.0  // dien ap tham chieu 5V
-#define SLAVE_ESP32 (0x08 << 1)
+#define SLAVE_ESP32 (0x0A << 1)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -140,12 +140,11 @@ int main(void)
   while (1)
   {    
 		Read_ADC_Value();
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
 		
 		HAL_Delay(500);
 		
 		Soil_Humidity = 100.0 - ((float)sensor_data[0]/4095.0) * 100.0;
-		sprintf(lcd_data, "Soil Moisture: %.1f%%  ", Soil_Humidity);
+		sprintf(lcd_data, "Soil Moisture: %.1f ", Soil_Humidity);
 		HAL_Delay(100);
 		lcd_send_cmd(0x80|0x00);		//hang 1
 		HAL_Delay(10);
@@ -153,14 +152,14 @@ int main(void)
 		HAL_Delay(500);
 	
 		DHT11_ReadExample();
-		sprintf(lcd_data, "Air Temperatue: %.1f ", Air_Temperature);
+		sprintf(lcd_data, "Air Temperatue: %.1f", Air_Temperature);
 		HAL_Delay(100);
 		lcd_send_cmd(0x80|0x40);
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
 		HAL_Delay(500);
 		
-		sprintf(lcd_data, "Air Humidity: %0.1f  ", Air_Humidity);
+		sprintf(lcd_data, "Air Humidity: %0.1f ", Air_Humidity);
 		HAL_Delay(100);
 		lcd_send_cmd(0x80|0x94);
 		HAL_Delay(10);
@@ -181,6 +180,11 @@ int main(void)
 		sprintf(jsonData,"{\"sensor\":\"Soil Moisture Sensor\",\"data\": %.1f}", Soil_Humidity);
 		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
 		HAL_Delay(200);
+		
+		if(HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100))
+		{
+			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
+		}		
 		sprintf(jsonData,"{\"sensor\":\"Temperature Sensor\",\"data\": %.1f}", Air_Temperature);
 		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
 		HAL_Delay(200);

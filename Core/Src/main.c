@@ -38,6 +38,7 @@
 /* USER CODE BEGIN PD */
 #define ADC_MAX_VALUE 4095.0
 #define VOLTAGE_REF 5.0  // dien ap tham chieu 5V
+#define SLAVE_ESP32 (0x08 << 1)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -49,6 +50,7 @@
 ADC_HandleTypeDef hadc1;
 
 I2C_HandleTypeDef hi2c1;
+I2C_HandleTypeDef hi2c2;
 
 TIM_HandleTypeDef htim2;
 
@@ -67,6 +69,7 @@ long last;								// DHT11
 uint32_t sensor_data[3];
 char lcd_data[20];
 float percentage_sensor_data[2];
+char jsonData[200];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,6 +79,7 @@ static void MX_I2C1_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_I2C2_Init(void);
 /* USER CODE BEGIN PFP */
 static void DHT11_ReadExample(void);
 static void Read_ADC_Value(void);
@@ -120,6 +124,7 @@ int main(void)
   MX_ADC1_Init();
   MX_USART1_UART_Init();
   MX_TIM2_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
 	lcd_init();
 //	lcd_send_cmd (0x80|0x00);		//dau hang 1
@@ -140,24 +145,36 @@ int main(void)
 		HAL_Delay(500);
 		
 		Soil_Humidity = 100.0 - ((float)sensor_data[0]/4095.0) * 100.0;
-		sprintf(lcd_data, "DO AM DAT: %.2f%% ", Soil_Humidity);
+		sprintf(lcd_data, "DO AM DAT: %.1f%% ", Soil_Humidity);
+		HAL_Delay(100);
+		sprintf(jsonData,"{\"sensor\":\"Soil Moisture Sensor\",\"data\": %.1f}", Soil_Humidity);
+		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
+		HAL_Delay(500);
 		lcd_send_cmd(0x80|0x00);		//hang 1
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
-		HAL_Delay(50);
+		HAL_Delay(500);
 	
 		DHT11_ReadExample();
-		sprintf(lcd_data, "NHIET DO KK: %.2f ", Air_Temperature);
+		sprintf(lcd_data, "NHIET DO KK: %.1f", Air_Temperature);
+		HAL_Delay(100);
+		sprintf(jsonData,"{\"sensor\":\"Temperature Sensor\",\"data\": %.1f}", Air_Temperature);
+		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
+		HAL_Delay(500);
 		lcd_send_cmd(0x80|0x40);
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
-		HAL_Delay(50);
+		HAL_Delay(500);
 		
-		sprintf(lcd_data, "DO AM KK: %0.2f", Air_Humidity);
+		sprintf(lcd_data, "DO AM KK: %0.1f", Air_Humidity);
+		HAL_Delay(100);
+		sprintf(jsonData,"{\"sensor\":\"Air Humidity Sensor\",\"data\": %.1f}", Air_Humidity);
+		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
+		HAL_Delay(500);
 		lcd_send_cmd(0x80|0x94);
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
-		HAL_Delay(50);
+		HAL_Delay(500);
 
 		adc_value_pH = sensor_data[1];
 		adc_value_temp = sensor_data[2];
@@ -165,10 +182,17 @@ int main(void)
 		Liquid_pH = Convert_ADC_To_pH(adc_value_pH);
 		
 		sprintf(lcd_data,"Water: %.1fpH/ %.1fC", Liquid_pH, Liquid_Temperature);
+		HAL_Delay(100);
+		sprintf(jsonData,"{\"sensor\":\"Water pH Sensor\",\"data\": %.1f}", Liquid_pH);
+		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
+		HAL_Delay(300);
+		sprintf(jsonData,"{\"sensor\":\"Air Temperature Sensor\",\"data\": %.1f}", Liquid_Temperature);
+		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
+		HAL_Delay(500);
 		lcd_send_cmd(0xD4);
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
-		HAL_Delay(50);
+		HAL_Delay(500);
 
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
 		HAL_Delay(500);
@@ -321,6 +345,40 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief I2C2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C2_Init(void)
+{
+
+  /* USER CODE BEGIN I2C2_Init 0 */
+
+  /* USER CODE END I2C2_Init 0 */
+
+  /* USER CODE BEGIN I2C2_Init 1 */
+
+  /* USER CODE END I2C2_Init 1 */
+  hi2c2.Instance = I2C2;
+  hi2c2.Init.ClockSpeed = 100000;
+  hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c2.Init.OwnAddress1 = 0;
+  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c2.Init.OwnAddress2 = 0;
+  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C2_Init 2 */
+
+  /* USER CODE END I2C2_Init 2 */
 
 }
 

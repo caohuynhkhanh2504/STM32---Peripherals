@@ -50,21 +50,21 @@
 ADC_HandleTypeDef hadc1;
 
 I2C_HandleTypeDef hi2c1;
-I2C_HandleTypeDef hi2c2;
 
 TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 dht11_t dht;
 PH4502C_Sensor PH_Sensor;
 float Air_Temperature;				// DHT11
 float Air_Humidity;						// DHT11
-float Liquid_Temperature;	//PH
-float Liquid_pH;					//PH
+float Water_Temperature;	//PH
+float Water_pH;					//PH
 uint32_t adc_value_pH, adc_value_temp;
-float Soil_Humidity;
+float Soil_Moisture;
 long last;								// DHT11
 uint32_t sensor_data[3];
 char lcd_data[20];
@@ -79,7 +79,7 @@ static void MX_I2C1_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM2_Init(void);
-static void MX_I2C2_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 static void DHT11_ReadExample(void);
 static void Read_ADC_Value(void);
@@ -124,7 +124,7 @@ int main(void)
   MX_ADC1_Init();
   MX_USART1_UART_Init();
   MX_TIM2_Init();
-  MX_I2C2_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 	lcd_init();
 //	lcd_send_cmd (0x80|0x00);		//dau hang 1
@@ -142,9 +142,9 @@ int main(void)
 		Read_ADC_Value();
 		
 		HAL_Delay(500);
-		
-		Soil_Humidity = 100.0 - ((float)sensor_data[0]/4095.0) * 100.0;
-		sprintf(lcd_data, "Soil Moisture: %.1f ", Soil_Humidity);
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
+		Soil_Moisture = 100.0 - ((float)sensor_data[0]/4095.0) * 100.0;
+		sprintf(lcd_data, "Soil Moisture: %.1f ", Soil_Moisture);
 		HAL_Delay(100);
 		lcd_send_cmd(0x80|0x00);		//hang 1
 		HAL_Delay(10);
@@ -168,34 +168,37 @@ int main(void)
 
 		adc_value_pH = sensor_data[1];
 		adc_value_temp = sensor_data[2];
-		Liquid_Temperature = Convert_ADC_To_Temperature(adc_value_temp);
-		Liquid_pH = Convert_ADC_To_pH(adc_value_pH);
-		sprintf(lcd_data,"Water: %.1fpH/ %.1fC ", Liquid_pH, Liquid_Temperature);
+		Water_Temperature = Convert_ADC_To_Temperature(adc_value_temp);
+		Water_pH = Convert_ADC_To_pH(adc_value_pH);
+		sprintf(lcd_data,"Water: %.1fpH/ %.1fC ", Water_pH, Water_Temperature);
 		HAL_Delay(100);
 		lcd_send_cmd(0xD4);
 		HAL_Delay(10);
 		lcd_send_string(lcd_data);
 		HAL_Delay(500);
 	
-		sprintf(jsonData,"{\"sensor\":\"Soil Moisture Sensor\",\"data\": %.1f}", Soil_Humidity);
-		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
-		HAL_Delay(200);
-		
-		if(HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100))
-		{
-			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
-		}		
-		sprintf(jsonData,"{\"sensor\":\"Temperature Sensor\",\"data\": %.1f}", Air_Temperature);
-		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
-		HAL_Delay(200);
-		sprintf(jsonData,"{\"sensor\":\"Water pH Sensor\",\"data\": %.1f}", Liquid_pH);
-		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
-		HAL_Delay(200);
-		sprintf(jsonData,"{\"sensor\":\"Air Temperature Sensor\",\"data\": %.1f}", Liquid_Temperature);
-		HAL_I2C_Master_Transmit(&hi2c2, SLAVE_ESP32, (uint8_t*)jsonData, strlen(jsonData), 100);
-		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
+		sprintf(jsonData,"{\"sensor\":\"Soil Moisture Sensor\",\"data\": %.1f}", Soil_Moisture);
+		HAL_UART_Transmit(&huart3, (uint8_t*)jsonData, strlen(jsonData), HAL_MAX_DELAY);
 		HAL_Delay(500);
+			
+		sprintf(jsonData,"{\"sensor\":\"Air Temperature Sensor\",\"data\": %.1f}", Air_Temperature);
+		HAL_UART_Transmit(&huart3, (uint8_t*)jsonData, strlen(jsonData), HAL_MAX_DELAY);
+		HAL_Delay(500);
+		
+		sprintf(jsonData,"{\"sensor\":\"Air Humidity Sensor\",\"data\": %.1f}", Air_Humidity);
+		HAL_UART_Transmit(&huart3, (uint8_t*)jsonData, strlen(jsonData), HAL_MAX_DELAY);
+		HAL_Delay(500);
+		
+		sprintf(jsonData,"{\"sensor\":\"Water pH Sensor\",\"data\": %.1f}", Water_pH);
+		HAL_UART_Transmit(&huart3, (uint8_t*)jsonData, strlen(jsonData), HAL_MAX_DELAY);
+		HAL_Delay(500);
+		
+		sprintf(jsonData,"{\"sensor\":\"Water Temperature Sensor\",\"data\": %.1f}", Water_Temperature);
+		HAL_UART_Transmit(&huart3, (uint8_t*)jsonData, strlen(jsonData), HAL_MAX_DELAY);
+		HAL_Delay(500);
+		
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
+		HAL_Delay(200);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -349,40 +352,6 @@ static void MX_I2C1_Init(void)
 }
 
 /**
-  * @brief I2C2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_I2C2_Init(void)
-{
-
-  /* USER CODE BEGIN I2C2_Init 0 */
-
-  /* USER CODE END I2C2_Init 0 */
-
-  /* USER CODE BEGIN I2C2_Init 1 */
-
-  /* USER CODE END I2C2_Init 1 */
-  hi2c2.Instance = I2C2;
-  hi2c2.Init.ClockSpeed = 100000;
-  hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_2;
-  hi2c2.Init.OwnAddress1 = 0;
-  hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c2.Init.OwnAddress2 = 0;
-  hi2c2.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c2.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2C2_Init 2 */
-
-  /* USER CODE END I2C2_Init 2 */
-
-}
-
-/**
   * @brief TIM2 Initialization Function
   * @param None
   * @retval None
@@ -457,6 +426,39 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
 
 }
 
